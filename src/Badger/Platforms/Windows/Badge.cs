@@ -1,26 +1,23 @@
 #if WINDOWS
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Globalization;
 using System.Runtime.Versioning;
-using Microsoft.Xna.Framework;
 using ShyFoxStudio.Badger.Platforms.Windows;
-
-using XnaColor = Microsoft.Xna.Framework.Color;
-using SystemColor = System.Drawing.Color;
 
 namespace ShyFoxStudio.Badger;
 
+[SupportedOSPlatform("windows")]
 public partial class Badge
 {
+    private Win32.ITaskbarList3? _taskbarList;
+    private IntPtr? _windowHandle;
 
-    private ITaskbarList3? _taskbarList;
-    private GameWindow? _window;
-    private IntPtr windowHandle;
-
-    partial void InitializePlatform(GameWindow window)
+    partial void InitializePlatform(IntPtr windowHandle)
     {
-        _taskbarList = (ITaskbarList3)new TaskbarList();
+        _taskbarList = (Win32.ITaskbarList3)new Win32.TaskbarList();
         int hresult = _taskbarList.HrInit();
 
         if (hresult != 0)
@@ -28,67 +25,51 @@ public partial class Badge
             throw new InvalidOperationException($"Failed to initialize taskbar list: HRESULT: 0x{hresult:X}");
         }
 
-        _window = window;
-    }
-
-    [SupportedOSPlatform("windows")]
-    partial void SetBadgePlatform(int count, XnaColor? backgroundColor, XnaColor? textColor)
-    {
-        if (_taskbarList == null || _window == null)
+        if (IsSdlAvailable())
         {
-            throw new InvalidOperationException($"Tasbar list is null, platform not initialized");
-        }
+            IntPtr sdlWindowHandle = GetWin32WindowHandle(windowHandle);
 
-
-        // Note:
-        // For some reason, setting the window handle in InitializePlatform above work fine for MonoGame WindowsDX,
-        // but for MonoGame DesktopGL, whatever window handle is given from Window.Handle is not the correct one (?)
-        // or doesn't work.  By forcing to get active window here, it ensures that this works on both DX and GL
-        // platforms on Windows.
-        //
-        // Need to investigate if there is a better way than forcing to get active window
-        IntPtr windowHandle = Win32.GetActiveWindow();
-
-        if (windowHandle == IntPtr.Zero)
-        {
-            return;
-        }
-
-        if (count > 0)
-        {
-            // Default colors
-            SystemColor bgColor = backgroundColor.HasValue ?
-                                  SystemColor.FromArgb(backgroundColor.Value.A, backgroundColor.Value.R, backgroundColor.Value.G, backgroundColor.Value.B) :
-                                  SystemColor.Red;
-            SystemColor txtColor = textColor.HasValue ?
-                                   SystemColor.FromArgb(textColor.Value.A, textColor.Value.R, textColor.Value.G, textColor.Value.B) :
-                                   SystemColor.White;
-
-
-            IntPtr hIcon = CreateBadgeIcon(count, bgColor, txtColor, 32);
-
-            if (hIcon != IntPtr.Zero)
+            if (sdlWindowHandle != IntPtr.Zero)
             {
-                string description = count.ToString(CultureInfo.InvariantCulture);
-                int hresult = _taskbarList.SetOverlayIcon(windowHandle, hIcon, description);
-                if (hresult != 0)
-                {
-                    throw new InvalidOperationException($"SetOverlayIcon failed with HRESULT: 0x{hresult:X}");
-                }
+                _windowHandle = sdlWindowHandle;
             }
             else
             {
-                throw new InvalidOperationException("Failed ot create bade icon (hIcon is IntPtr.Zero)");
-            }
-
-            if (hIcon != IntPtr.Zero)
-            {
-                Win32.DestroyIcon(hIcon);
+                _windowHandle = windowHandle;
             }
         }
         else
         {
-            ClearBadgePlatform();
+            _windowHandle = windowHandle;
+        }
+    }
+
+    partial void SetBadgePlatform()
+    {
+        if (_taskbarList == null || _windowHandle == null)
+        {
+            throw new InvalidOperationException($"Taskbar list is null, platform not initialized");
+        }
+
+        IntPtr hIcon = CreateBadgeIcon();
+
+        if (hIcon != IntPtr.Zero)
+        {
+            string description = s_count.ToString(CultureInfo.InvariantCulture);
+            int hresult = _taskbarList.SetOverlayIcon(_windowHandle.Value, hIcon, description);
+            if (hresult != 0)
+            {
+                throw new InvalidOperationException($"SetOverlayIcon failed with HRESULT: 0x{hresult:X}");
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException("Failed ot create bade icon (hIcon is IntPtr.Zero)");
+        }
+
+        if (hIcon != IntPtr.Zero)
+        {
+            Win32.DestroyIcon(hIcon);
         }
     }
 
@@ -99,16 +80,7 @@ public partial class Badge
             throw new InvalidOperationException($"Taskbar list is null. Platform not initialized");
         }
 
-        // Note:
-        // For some reason, setting the window handle in InitializePlatform above work fine for MonoGame WindowsDX,
-        // but for MonoGame DesktopGL, whatever window handle is given from Window.Handle is not the correct one (?)
-        // or doesn't work.  By forcing to get active window here, it ensures that this works on both DX and GL
-        // platforms on Windows.
-        //
-        // Need to investigate if there is a better way than forcing to get active window
-        IntPtr windowHandle = Win32.GetActiveWindow();
-
-        int hresult = _taskbarList.SetOverlayIcon(windowHandle, IntPtr.Zero, string.Empty);
+        int hresult = _taskbarList.SetOverlayIcon(_windowHandle!.Value, IntPtr.Zero, string.Empty);
 
         if (hresult != 0)
         {
@@ -116,36 +88,90 @@ public partial class Badge
         }
     }
 
-    [SupportedOSPlatform("windows")]
-    private static IntPtr CreateBadgeIcon(int count, SystemColor backgroundColor, SystemColor textColor, int size = 32)
+    private static bool IsSdlAvailable()
     {
-        string text = count > 99 ? "99+" : (count > 9 ? "9+" : count.ToString(CultureInfo.InvariantCulture));
-
-        // Create a bitmap with 32-bit ARGB format for better transparency
-        using Bitmap bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
-        using Graphics graphics = Graphics.FromImage(bitmap);
-
-        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-        graphics.Clear(SystemColor.Transparent);
-
-        using SolidBrush brush = new SolidBrush(backgroundColor);
-        graphics.FillEllipse(brush, 0, 0, size, size);
-
-        float fontSize = size * 0.5f;
-        if (text.Length > 1) fontSize *= 0.8f;
-
-        using Font font = new Font("Arial", fontSize, FontStyle.Bold);
-        using StringFormat format = new StringFormat();
-        format.Alignment = StringAlignment.Center;
-        format.LineAlignment = StringAlignment.Center;
-
-        using SolidBrush textBrush = new SolidBrush(textColor);
-
-        graphics.DrawString(text, font, textBrush, new RectangleF(0, 0, size, size), format);
-
-        return bitmap.GetHicon();
+        try
+        {
+            IntPtr sdlModule = Kernal32.LoadLibrary("SDL2.dll");
+            if (sdlModule == IntPtr.Zero)
+            {
+                return false;
+            }
+            Kernal32.FreeLibrary(sdlModule);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
+    private static IntPtr GetWin32WindowHandle(IntPtr sdlWindowHandle)
+    {
+        try
+        {
+            SDL.SysWMInfo_Windows info = new SDL.SysWMInfo_Windows();
+            info.version.major = 2;
+            info.version.minor = 0;
+            info.version.patch = 0;
+
+            if (!SDL.SDL_GetWindowWMInfo(sdlWindowHandle, ref info))
+            {
+                return IntPtr.Zero;
+            }
+
+            return info.window;
+        }
+        catch
+        {
+            return IntPtr.Zero;
+        }
+    }
+
+    private static IntPtr CreateBadgeIcon()
+    {
+        string text = s_count > MaxCount ?
+                      $"{MaxCount}+" :
+                      s_count.ToString(CultureInfo.InvariantCulture);
+
+        int size = 32;
+
+        using (Bitmap bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb))
+        {
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                graphics.Clear(Color.Transparent);
+
+                using (SolidBrush brush = new SolidBrush(BackgroundColor))
+                {
+                    graphics.FillEllipse(brush, 0, 0, size, size);
+                }
+
+                float fontSize = size * 0.4f;
+                if(text.Length > 1)
+                {
+                    fontSize = size * 0.25f;
+                }
+
+                using (Font font = new Font("Arial", fontSize, FontStyle.Bold))
+                {
+                    using (StringFormat format = new StringFormat())
+                    {
+                        format.Alignment = StringAlignment.Center;
+                        format.LineAlignment = StringAlignment.Center;
+
+                        using (SolidBrush textBrush = new SolidBrush(TextColor))
+                        {
+                            graphics.DrawString(text, font, textBrush, new Rectangle(0, 0, size, size), format);
+                        }
+                    }
+                }
+            }
+
+            return bitmap.GetHicon();
+        }
+    }
 }
 #endif

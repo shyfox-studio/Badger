@@ -13,12 +13,8 @@ namespace Badger.Example.WindowsDX
 
         private GraphicsDeviceManager _graphics;
 
-        private int _count;
         private KeyboardState _previousKeyboardState;
         private KeyboardState _currentKeyboardState;
-
-        private System.Drawing.Color _systemMonoGameOrange;
-        private System.Drawing.Color _systemWhite;
 
         public Game1()
         {
@@ -29,10 +25,7 @@ namespace Badger.Example.WindowsDX
 
         protected override void Initialize()
         {
-            Badge.Instance.Initialize(Window);
-
-            _systemMonoGameOrange = System.Drawing.Color.FromArgb(Color.MonoGameOrange.A, Color.MonoGameOrange.R, Color.MonoGameOrange.G, Color.MonoGameOrange.B);
-            _systemWhite = System.Drawing.Color.FromArgb(Color.White.A, Color.White.R, Color.White.G, Color.White.B);
+            Badge.Initialize(Window.Handle);
 
             base.Initialize();
         }
@@ -52,20 +45,17 @@ namespace Badger.Example.WindowsDX
 
             if (_currentKeyboardState.IsKeyDown(Keys.Up) && _previousKeyboardState.IsKeyUp(Keys.Up))
             {
-                _count++;
-                Badge.Instance.SetBadge(_count, Color.MonoGameOrange, Color.White);
+                Badge.Count++;
             }
 
             if (_currentKeyboardState.IsKeyDown(Keys.Down) && _previousKeyboardState.IsKeyUp(Keys.Down))
             {
-                _count = Math.Max(0, _count - 1); // Fixed decrement logic
-                Badge.Instance.SetBadge(_count, Color.MonoGameOrange, Color.White);
+                Badge.Count--;
             }
 
             if (_currentKeyboardState.IsKeyDown(Keys.C) && _previousKeyboardState.IsKeyUp(Keys.C))
             {
-                _count = 0;
-                Badge.Instance.SetBadge(_count, Color.MonoGameOrange, Color.White);
+                Badge.ClearBadge();
             }
         }
 
