@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <PropertyGroup>
+        <!-- This MUST be defined before importing props. -->
+        <SolutionDirectory>$(MSBuildThisFileDirectory)</SolutionDirectory>
+    </PropertyGroup>
+
+    <!-- Import the shared global .props file -->
+    <Import Project="$(MSBuildThisFileDirectory)shared-configuration\msbuild\props\Shared.Configuration.props" />
+</Project>
