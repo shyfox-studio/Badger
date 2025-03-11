@@ -13,6 +13,9 @@ A cross-platform library that adds notification badge counts to your MonoGame ap
 
 </div>
 
+## Preview
+![MonoGame Taskbar Icon with badge count 9+](./preview.png)
+
 > [!NOTE]
 > This is designed and intended to be used with MonoGame
 
