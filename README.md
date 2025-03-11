@@ -24,4 +24,4 @@ A cross-platform library that adds notification badge counts to your MonoGame ap
 
 ## License
 
-MonoPack is licensed under the MIT License.  Please refer to [LICENSE](LICENSE) for full license text.
+Badger is licensed under the MIT License.  Please refer to [LICENSE](LICENSE) for full license text.
