@@ -1,5 +1,5 @@
 <h1 align="center">
-<img src="https://raw.githubusercontent.com/shyfox-studio/branding/51d21485b8b524893dd84a735f05d1bd154066f0/icons/badger/badger.svg" alt="ShyFox.Badger Logo" width="256" />
+<img src="https://raw.githubusercontent.com/shyfox-studio/branding/528fa257369ba2f9745c362ed942baae3791cebe/icons/badger/badger.svg" alt="ShyFox.Badger Logo" width="256" />
 <br />
 Badger
 </h1>
